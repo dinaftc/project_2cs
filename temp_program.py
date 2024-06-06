@@ -1,122 +1,61 @@
-class Gcd:
-
-    @staticmethod
-    def gcd(a, b):
-        if a == 0:
-            return b
-        while b != 0:
-            if a > b:
-                a = b - b
-            else:
-                b = b - a
-        return a
-
 
 import unittest
 
+class SquareRoot:
+    @staticmethod
+    def squareRoot(val):
+        i = 1
+        v = 0
+        res = 0
 
-class TestProgram(unittest.TestCase):
+        while v < val:
+            v = v + 2 * i + 1
+            i = i + 1
 
-    def test_case_0(self):
-        result = Gcd.gcd(0, 0)
-        self.assertEqual(result, 0)
+        # error: the instruction should be res = i - 1
+        res = i 
+        return res
 
-    def test_case_1(self):
-        result = Gcd.gcd(5, 5)
-        self.assertEqual(result, 5)
+class SquareRootTest(unittest.TestCase):
+    def test_0(self):
+        result = SquareRoot.squareRoot(9)
+        self.assertEqual(result, 3)  # 3 is the integer square root of 9
 
-    def test_case_2(self):
-        result = Gcd.gcd(10, 10)
-        self.assertEqual(result, 10)
+    def test_1(self):
+        result = SquareRoot.squareRoot(15)
+        self.assertEqual(result, 3)  # 3 is the integer square root of 15
 
-    def test_case_3(self):
-        result = Gcd.gcd(15, 15)
-        self.assertEqual(result, 15)
+    def test_2(self):
+        result = SquareRoot.squareRoot(16)
+        self.assertEqual(result, 4)  # 4 is the integer square root of 16
 
-    def test_case_4(self):
-        result = Gcd.gcd(20, 20)
-        self.assertEqual(result, 20)
+    def test_3(self):
+        result = SquareRoot.squareRoot(20)
+        self.assertEqual(result, 4)  # 4 is the integer square root of 20
 
-    def test_case_5(self):
-        result = Gcd.gcd(5, 10)
-        self.assertEqual(result, 5)
+    def test_4(self):
+        result = SquareRoot.squareRoot(25)
+        self.assertEqual(result, 5)  # 5 is the integer square root of 25
 
-    def test_case_6(self):
-        result = Gcd.gcd(10, 15)
-        self.assertEqual(result, 5)
+    def test_5(self):
+        result = SquareRoot.squareRoot(30)
+        self.assertEqual(result, 5)  # 5 is the integer square root of 30
 
-    def test_case_7(self):
-        result = Gcd.gcd(15, 20)
-        self.assertEqual(result, 5)
+    def test_6(self):
+        result = SquareRoot.squareRoot(36)
+        self.assertEqual(result, 6)  # 6 is the integer square root of 36
 
-    def test_case_8(self):
-        result = Gcd.gcd(0, 10)
-        self.assertEqual(result, 10)
+    def test_7(self):
+        result = SquareRoot.squareRoot(40)
+        self.assertEqual(result, 6)  # 6 is the integer square root of 40
 
-    def test_case_9(self):
-        result = Gcd.gcd(5, 15)
-        self.assertEqual(result, 5)
+    def test_8(self):
+        result = SquareRoot.squareRoot(49)
+        self.assertEqual(result, 7)  # 7 is the integer square root of 49
 
-    def test_case_10(self):
-        result = Gcd.gcd(10, 20)
-        self.assertEqual(result, 10)
-
-    def test_case_11(self):
-        result = Gcd.gcd(20, 0)
-        self.assertEqual(result, 20)
-
-    def test_case_12(self):
-        result = Gcd.gcd(0, 15)
-        self.assertEqual(result, 15)
-
-    def test_case_13(self):
-        result = Gcd.gcd(5, 20)
-        self.assertEqual(result, 5)
-
-    def test_case_14(self):
-        result = Gcd.gcd(15, 0)
-        self.assertEqual(result, 15)
-
-    def test_case_15(self):
-        result = Gcd.gcd(20, 5)
-        self.assertEqual(result, 5)
-
-    def test_case_16(self):
-        result = Gcd.gcd(0, 20)
-        self.assertEqual(result, 20)
-
-    def test_case_17(self):
-        result = Gcd.gcd(10, 0)
-        self.assertEqual(result, 10)
-
-    def test_case_18(self):
-        result = Gcd.gcd(15, 5)
-        self.assertEqual(result, 5)
-
-    def test_case_19(self):
-        result = Gcd.gcd(20, 10)
-        self.assertEqual(result, 10)
-
-    def test_case_20(self):
-        result = Gcd.gcd(5, 0)
-        self.assertEqual(result, 5)
-
-    def test_case_21(self):
-        result = Gcd.gcd(10, 5)
-        self.assertEqual(result, 5)
-
-    def test_case_22(self):
-        result = Gcd.gcd(15, 10)
-        self.assertEqual(result, 5)
-
-    def test_case_23(self):
-        result = Gcd.gcd(20, 15)
-        self.assertEqual(result, 5)
-
-    def test_case_24(self):
-        result = Gcd.gcd(0, 5)
-        self.assertEqual(result, 5)
-
+    def test_9(self):
+        result = SquareRoot.squareRoot(50)
+        self.assertEqual(result, 7)  # 7 is the integer square root of 50
 
 if __name__ == '__main__':
     unittest.main()

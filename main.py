@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.responses import JSONResponse
 import subprocess
 import ast
@@ -193,10 +193,10 @@ def translate_expr(individual, variables):
         expr = expr.replace(arg_name, var)
     return expr
 
-async def evalSymbReg(individual, variables):
+async def evalSymbReg(individual, variables, line_number, wrong_expression):
     new_expression = translate_expr(individual, variables)
     new_expression = expr.parseString(str(new_expression))
-    erroneous_code = replace_expression(erroneous_program, 9, "b - b", str(new_expression)[2:-2].strip())
+    erroneous_code = replace_expression(erroneous_program, line_number, wrong_expression, str(new_expression)[2:-2].strip())
     
     try:
         total_tests, failed_tests, successful_tests = await evaluate_program(erroneous_code)
@@ -271,7 +271,11 @@ async def async_eaSimple(pop, toolbox, cxpb, mutpb, ngen, halloffame, threshold,
     return pop, logbook
 
 @app.post("/uploadfile/")
-async def create_upload_file(file: UploadFile = File(...)):
+async def create_upload_file(
+    file: UploadFile = File(...),
+    line_number: int = Form(...),
+    wrong_expression: str = Form(...)
+):
     global erroneous_program
     try:
         erroneous_program = (await file.read()).decode('utf-8')
@@ -292,7 +296,7 @@ async def create_upload_file(file: UploadFile = File(...)):
         pset.addPrimitive(operator.mul, 2)
         pset.addEphemeralConstant("rand101", lambda: random.randint(-10, 10))
 
-        toolbox.register("evaluate", lambda ind: evalSymbReg(ind, variables=variables))  # Directly await without asyncio.run
+        toolbox.register("evaluate", lambda ind: evalSymbReg(ind, variables=variables, line_number=line_number, wrong_expression=wrong_expression))
         toolbox.register("select", tools.selTournament, tournsize=3)
         toolbox.register("mate", gp.cxOnePoint)
         toolbox.register("expr_mut", gp.genFull, min_=0, max_=2)
