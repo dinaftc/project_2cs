@@ -1,88 +1,26 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
-from typing import List, Tuple, Any
-from fastapi.middleware.cors import CORSMiddleware
-import re
-import os
+import subprocess
 import ast
 import astor
-import textwrap
-import asyncio
+import concurrent.futures
+from deap import algorithms, base, creator, tools, gp
+import operator
+import random
+import numpy as np
+import time
 import logging
 import traceback
-import random
-import operator
-import builtins
+from pyparsing import Forward, Literal, Word, alphas, nums, alphanums
 import keyword
+import builtins
 import csv
-import time
-import numpy as np
-import unittest
-from pyparsing import Forward, Word, alphas, alphanums, Literal, nums
-
-from deap import algorithms, base, creator, tools, gp
+import asyncio
+import re
 
 app = FastAPI()
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # Set this to specific origins you want to allow, e.g., ["http://localhost", "https://example.com"]
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE"],
-    allow_headers=["*"],
-)
 
 logging.basicConfig(level=logging.INFO)
-
-# Helper functions and classes
-def extract_class_and_method(program: str) -> Tuple[str, str]:
-    class_name_search = re.search(r'class\s+(\w+)', program)
-    method_name_search = re.search(r'def\s+(\w+)', program)
-
-    if not class_name_search or not method_name_search:
-        raise ValueError("Could not find class or method definition in the program.")
-
-    class_name = class_name_search.group(1)
-    method_name = method_name_search.group(1)
-
-    return class_name, method_name
-
-
-def generate_unittest_class(wrong_program: str, test_cases: List[Tuple[Tuple[Any, ...], Any]]) -> str:
-    class_name, method_name = extract_class_and_method(wrong_program)
-    test_class_name = "TestProgram"
-    tests = []
-
-    for i, test_case in enumerate(test_cases):
-        inputs = ", ".join(map(str, test_case[0]))
-        expected = test_case[1]
-        test_code = f"""
-    def test_case_{i}(self):
-        result = {class_name}.{method_name}({inputs})
-        self.assertEqual(result, {expected})
-"""
-        tests.append(test_code)
-
-    test_class_code = f"""
-import unittest
-
-class {test_class_name}(unittest.TestCase):{''.join(tests)}
-
-if __name__ == "__main__":
-    unittest.main()
-"""
-
-    # Merge with the wrong program
-    merged_code = f"{wrong_program}\n\n{test_class_code}"
-
-    return merged_code
-
-class ProgramTestRequest(BaseModel):
-    program: str
-    test_cases: List[Tuple[Tuple[Any, ...], Any]]
-    line_number: int
-    wrong_expression: str
-
 
 # Constants
 MAX_GENERATIONS = 50
@@ -255,10 +193,10 @@ def translate_expr(individual, variables):
         expr = expr.replace(arg_name, var)
     return expr
 
-async def evalSymbReg(individual, variables, line_number, wrong_expression):
+async def evalSymbReg(individual, variables):
     new_expression = translate_expr(individual, variables)
     new_expression = expr.parseString(str(new_expression))
-    erroneous_code = replace_expression(erroneous_program, line_number, wrong_expression, str(new_expression)[2:-2].strip())
+    erroneous_code = replace_expression(erroneous_program, 9, "b - b", str(new_expression)[2:-2].strip())
     
     try:
         total_tests, failed_tests, successful_tests = await evaluate_program(erroneous_code)
@@ -332,30 +270,17 @@ async def async_eaSimple(pop, toolbox, cxpb, mutpb, ngen, halloffame, threshold,
 
     return pop, logbook
 
-@app.post("/test_program")
-async def test_program(request: ProgramTestRequest):
+@app.post("/uploadfile/")
+async def create_upload_file(file: UploadFile = File(...)):
     global erroneous_program
-    erroneous_program = request.program
-    test_cases = request.test_cases
-    line_number = request.line_number
-    wrong_expression = request.wrong_expression
-
     try:
-        unittest_code = generate_unittest_class(erroneous_program, test_cases)
-        # Write the erroneous program to a file
-        test_program_file = os.path.join(OUTPUT_DIRECTORY, 'test_program.py')
-        with open(test_program_file, 'w') as f:
-            f.write(unittest_code)
-
-        # Read the content of the file back into erroneous_program
-        with open(test_program_file, 'r') as f:
-            erroneous_program = f.read()
-        print(erroneous_program)
-
+        erroneous_program = (await file.read()).decode('utf-8')
+        logging.info("Uploaded file content:\n%s", erroneous_program)
         
         if not erroneous_program.strip():
             logging.error("Uploaded file is empty.")
             raise HTTPException(status_code=400, detail="Uploaded file is empty.")
+        
         variables, _ = extract_variables_constants(erroneous_program)
         if not variables:
             logging.error("No variables found in the uploaded program.")
@@ -367,7 +292,7 @@ async def test_program(request: ProgramTestRequest):
         pset.addPrimitive(operator.mul, 2)
         pset.addEphemeralConstant("rand101", lambda: random.randint(-10, 10))
 
-        toolbox.register("evaluate", lambda ind: evalSymbReg(ind, variables=variables, line_number=line_number, wrong_expression=wrong_expression))
+        toolbox.register("evaluate", lambda ind: evalSymbReg(ind, variables=variables))  # Directly await without asyncio.run
         toolbox.register("select", tools.selTournament, tournsize=3)
         toolbox.register("mate", gp.cxOnePoint)
         toolbox.register("expr_mut", gp.genFull, min_=0, max_=2)

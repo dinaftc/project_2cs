@@ -8,7 +8,7 @@ class Gcd:
             if a > b:
                 a = b - b
             else:
-                b = b - a
+                b = a - a
         return a
 
 
