@@ -5,11 +5,10 @@ class Gcd:
             return b
         while b != 0:
             if a > b:
-                a = b - b
+                a = b - a
             else:
                 b = b - a
         return a
-    
 
 
 import unittest

@@ -1,26 +1,86 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
-import subprocess
+from pydantic import BaseModel
+from typing import List, Tuple, Any
+from fastapi.middleware.cors import CORSMiddleware
+import re
+import os
 import ast
 import astor
-import concurrent.futures
-from deap import algorithms, base, creator, tools, gp
-import operator
-import random
-import numpy as np
-import time
+import textwrap
+import asyncio
 import logging
 import traceback
-from pyparsing import Forward, Literal, Word, alphas, nums, alphanums
-import keyword
+import random
+import operator
 import builtins
+import keyword
 import csv
-import asyncio
-import re
+import time
+import numpy as np
+import unittest
+from pyparsing import Forward, Word, alphas, alphanums, Literal, nums
+
+from deap import algorithms, base, creator, tools, gp
 
 app = FastAPI()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Set this to specific origins you want to allow, e.g., ["http://localhost", "https://example.com"]
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE"],
+    allow_headers=["*"],
+)
 
 logging.basicConfig(level=logging.INFO)
+
+# Helper functions and classes
+def extract_class_and_method(program: str) -> Tuple[str, str]:
+    class_name_search = re.search(r'class\s+(\w+)', program)
+    method_name_search = re.search(r'def\s+(\w+)', program)
+
+    if not class_name_search or not method_name_search:
+        raise ValueError("Could not find class or method definition in the program.")
+
+    class_name = class_name_search.group(1)
+    method_name = method_name_search.group(1)
+
+    return class_name, method_name
+
+def generate_unittest_class(wrong_program: str, test_cases: List[Tuple[Tuple[Any, ...], Any]]) -> str:
+    class_name, method_name = extract_class_and_method(wrong_program)
+    test_class_name = "TestProgram"
+    tests = []
+
+    for i, test_case in enumerate(test_cases):
+        inputs = ", ".join(map(str, test_case[0]))
+        expected = test_case[1]
+        test_code = f"""
+    def test_case_{i}(self):
+        result = {class_name}.{method_name}({inputs})
+        self.assertEqual(result, {expected})
+"""
+        tests.append(test_code)
+
+    test_class_code = f"""
+import unittest
+
+class {test_class_name}(unittest.TestCase):{''.join(tests)}
+
+if __name__ == "__main__":
+    unittest.main()
+"""
+
+    # Merge with the wrong program
+    merged_code = f"{wrong_program}\n\n{test_class_code}"
+
+    return merged_code
+
+class ProgramTestRequest(BaseModel):
+    program: str
+    test_cases: List[Tuple[Tuple[Any, ...], Any]]
+    line_number: int
+    wrong_expression: str
 
 # Constants
 MAX_GENERATIONS = 50
@@ -184,161 +244,73 @@ def extract_variables_constants(program):
 
 def translate_expr(individual, variables):
     expr = str(individual)
-    expr = expr.replace("add", "+")
-    expr = expr.replace("sub", "-")
-    expr = expr.replace("mul", "*")
-    expr = expr.replace("rand101", str(random.randint(-10, 10)))
     for i, var in enumerate(variables):
-        arg_name = "ARG{}".format(i)
-        expr = expr.replace(arg_name, var)
+        expr = expr.replace(f"ARG{i}", var)
     return expr
 
-async def evalSymbReg(individual, variables):
-    new_expression = translate_expr(individual, variables)
-    new_expression = expr.parseString(str(new_expression))
-    erroneous_code = replace_expression(erroneous_program, 9, "b - b", str(new_expression)[2:-2].strip())
-    
-    try:
-        total_tests, failed_tests, successful_tests = await evaluate_program(erroneous_code)
-    except Exception as e:
-        logging.error(f"Exception during evaluation: {e}")
-        return 25,  # Default to all tests failing if there's an error
-
-    num_failed_tests = failed_tests
-    return num_failed_tests,
-
-async def async_eaSimple(pop, toolbox, cxpb, mutpb, ngen, halloffame, threshold, stats=None, verbose=__debug__):
-    logbook = tools.Logbook()
-    logbook.header = ['gen', 'nevals'] + (stats.fields if stats else [])
-
-    # Evaluate the entire population
-    invalid_ind = [ind for ind in pop if not ind.fitness.valid]
-    fitnesses = await asyncio.gather(*[toolbox.evaluate(ind) for ind in invalid_ind])
-    for ind, fit in zip(invalid_ind, fitnesses):
-        ind.fitness.values = fit
-    
-    if halloffame is not None:
-        halloffame.update(pop)
-    
-    record = stats.compile(pop) if stats else {}
-    logbook.record(gen=0, nevals=len(invalid_ind), **record)
-    if verbose:
-        print(logbook.stream)
-    
-    # Begin the generational process
-    for gen in range(1, ngen + 1):
-        # Select the next generation individuals
-        offspring = toolbox.select(pop, len(pop))
-        # Clone the selected individuals
-        offspring = list(map(toolbox.clone, offspring))
-
-        # Apply crossover and mutation on the offspring
-        for child1, child2 in zip(offspring[::2], offspring[1::2]):
-            if random.random() < cxpb:
-                toolbox.mate(child1, child2)
-                del child1.fitness.values
-                del child2.fitness.values
-
-        for mutant in offspring:
-            if random.random() < mutpb:
-                toolbox.mutate(mutant)
-                del mutant.fitness.values
-
-        # Evaluate the individuals with an invalid fitness
-        invalid_ind = [ind for ind in offspring if not ind.fitness.valid]
-        fitnesses = await asyncio.gather(*[toolbox.evaluate(ind) for ind in invalid_ind])
-        for ind, fit in zip(invalid_ind, fitnesses):
-            ind.fitness.values = fit
-
-        # Update the hall of fame with the generated individuals
-        if halloffame is not None:
-            halloffame.update(offspring)
-        
-        # Replace the current population with the offspring
-        pop[:] = offspring
-
-        # Append the current generation statistics to the logbook
-        record = stats.compile(pop) if stats else {}
-        logbook.record(gen=gen, nevals=len(invalid_ind), **record)
-        if verbose:
-            print(logbook.stream)
-
-        # Check if the best individual meets the threshold
-        if halloffame[0].fitness.values[0] <= threshold:
-            logging.info(f"Terminating early at generation {gen} as the best individual met the threshold.")
-            break
-
-    return pop, logbook
-
-@app.post("/uploadfile/")
-async def create_upload_file(file: UploadFile = File(...)):
+def evaluate_individual(individual, variables, program, line_number, wrong_expression):
     global erroneous_program
-    try:
-        erroneous_program = (await file.read()).decode('utf-8')
-        logging.info("Uploaded file content:\n%s", erroneous_program)
-        
-        if not erroneous_program.strip():
-            logging.error("Uploaded file is empty.")
-            raise HTTPException(status_code=400, detail="Uploaded file is empty.")
-        
-        variables, _ = extract_variables_constants(erroneous_program)
-        if not variables:
-            logging.error("No variables found in the uploaded program.")
-            raise HTTPException(status_code=400, detail="No valid data points found in the uploaded file.")
-        
-        pset = gp.PrimitiveSet("MAIN", arity=len(variables))
-        pset.addPrimitive(operator.add, 2)
-        pset.addPrimitive(operator.sub, 2)
-        pset.addPrimitive(operator.mul, 2)
-        pset.addEphemeralConstant("rand101", lambda: random.randint(-10, 10))
 
-        toolbox.register("evaluate", lambda ind: evalSymbReg(ind, variables=variables))  # Directly await without asyncio.run
-        toolbox.register("select", tools.selTournament, tournsize=3)
-        toolbox.register("mate", gp.cxOnePoint)
-        toolbox.register("expr_mut", gp.genFull, min_=0, max_=2)
-        toolbox.register("mutate", gp.mutUniform, expr=toolbox.expr_mut, pset=pset)
+    infix_expression = translate_expr(individual, variables)
+    new_program = replace_expression(program, line_number, wrong_expression, infix_expression)
+    erroneous_program = new_program
 
-        start_time = time.time()
-        random.seed(42)
+    total_tests, failed_tests, successful_tests = asyncio.run(evaluate_program(new_program))
 
-        if len(variables) < 1:
-            logging.error("Error: Incorrect number of extracted variables.")
-            raise HTTPException(status_code=400, detail="Incorrect number of extracted variables.")
-        
-        variables_list = list(variables)
-        pop = toolbox.population(n=POPULATION_SIZE)
-        hof = tools.HallOfFame(1)
-        stats = tools.Statistics(lambda ind: ind.fitness.values)
-        stats.register("avg", np.mean)
-        stats.register("std", np.std)
-        stats.register("min", np.min)
-        stats.register("max", np.max)
+    return (failed_tests,)
 
-        # Set a fitness threshold for early termination
-        fitness_threshold = 0
+toolbox.register("evaluate", evaluate_individual, variables=[], program='', line_number=0, wrong_expression='')
+toolbox.register("mate", gp.cxOnePoint)
+toolbox.register("mutate", gp.mutUniform, expr=toolbox.expr, pset=pset)
+toolbox.register("select", tools.selTournament, tournsize=3)
 
-        logbook = await async_eaSimple(pop, toolbox, 0.5, 0.1, MAX_GENERATIONS, halloffame=hof, threshold=fitness_threshold, stats=stats, verbose=True)
-        execution_time = time.time() - start_time
+@app.post("/test_program")
+async def test_program(request: ProgramTestRequest):
+    global erroneous_program
 
-        metrics_file = OUTPUT_DIRECTORY + "/gcd_evolution_metrics.csv"
-        with open(metrics_file, mode='w', newline='') as file:
-            writer = csv.writer(file)
-            writer.writerow(["Generation", "Individuals", "Average Fitness", "Std Fitness", "Min Fitness", "Max Fitness", "Execution Time", "Best Individual"])
-            best_individual = hof[0]
-            best_expr_str = translate_expr(best_individual, variables_list)
-            best_expr_str2 = expr.parseString(str(best_expr_str))
-            best_expr_str2 = str(best_expr_str2)[2:-2].strip()
-            for gen, record in enumerate(logbook[1:]):
-                writer.writerow([record[0]['gen'], record[0]['nevals'], record[0]['avg'], record[0]['std'], record[0]['min'], record[0]['max'], execution_time, best_expr_str2])
-        
-        logging.info("Metrics and best individuals saved successfully.")
-        return JSONResponse(content={"detail": "File processed successfully."})
+    program = request.program
+    test_cases = request.test_cases
+    line_number = request.line_number
+    wrong_expression = request.wrong_expression
 
-    except Exception as e:
-        logging.error("Error processing the uploaded file: %s", e)
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail="Internal server error.")
+    test_code = generate_unittest_class(program, test_cases)
+    erroneous_program = test_code
+
+    variables, constants = extract_variables_constants(program)
+    pset = gp.PrimitiveSet("MAIN", arity=len(variables))
+
+    for variable in variables:
+        pset.addTerminal(variable)
+
+    for constant in constants:
+        pset.addTerminal(constant)
+
+    toolbox.unregister("evaluate")
+    toolbox.register("evaluate", evaluate_individual, variables=variables, program=program,
+                     line_number=line_number, wrong_expression=wrong_expression)
+
+    population = toolbox.population(n=POPULATION_SIZE)
+    hof = tools.HallOfFame(1)
+
+    start_time = time.time()
+    pop, log = algorithms.eaSimple(population, toolbox, cxpb=0.5, mutpb=0.2, ngen=MAX_GENERATIONS,
+                                   halloffame=hof, verbose=True)
+    end_time = time.time()
+    elapsed_time = end_time - start_time
+
+    best_individual = hof[0]
+    best_expression = translate_expr(best_individual, variables)
+
+    new_program = replace_expression(program, line_number, wrong_expression, best_expression)
+
+    return JSONResponse(content={
+        "original_program": program,
+        "erroneous_program": erroneous_program,
+        "new_program": new_program,
+        "best_expression": best_expression,
+        "elapsed_time": elapsed_time
+    })
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+    uvicorn.run(app, host="127.0.0.1", port=8001)

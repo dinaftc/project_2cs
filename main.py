@@ -406,9 +406,16 @@ async def test_program(request: ProgramTestRequest):
             best_expr_str2 = str(best_expr_str2)[2:-2].strip()
             for gen, record in enumerate(logbook[1:]):
                 writer.writerow([record[0]['gen'], record[0]['nevals'], record[0]['avg'], record[0]['std'], record[0]['min'], record[0]['max'], execution_time, best_expr_str2])
-        
+            new_program = replace_expression(erroneous_program, line_number, wrong_expression, best_expr_str2)
+
+    
         logging.info("Metrics and best individuals saved successfully.")
-        return JSONResponse(content={"detail": "File processed successfully."})
+        return JSONResponse(content={
+        "erroneous_program": erroneous_program,
+        "new_program": new_program,
+        "best_expression": best_expr_str2,
+        "elapsed_time": execution_time
+    })
 
     except Exception as e:
         logging.error("Error processing the uploaded file: %s", e)
