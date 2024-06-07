@@ -1,5 +1,3 @@
-import unittest
-
 class Gcd:
     @staticmethod
     def gcd(a, b):
@@ -11,6 +9,7 @@ class Gcd:
             else:
                 b = b - a
         return a
+    
 
 
 import unittest
