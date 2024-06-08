@@ -1,3 +1,4 @@
+import unittest
 class Gcd:
     @staticmethod
     def gcd(a, b):
@@ -5,10 +6,11 @@ class Gcd:
             return b
         while b != 0:
             if a > b:
-                a = b - a
+                a = b - b
             else:
                 b = b - a
         return a
+    
 
 
 import unittest
