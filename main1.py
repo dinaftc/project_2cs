@@ -81,13 +81,12 @@ class ProgramTestRequest(BaseModel):
     program: str
     test_cases: List[Tuple[Tuple[Any, ...], Any]]
     line_number: int
-    wrong_expression: str
 
 
 
 # Constants
-MAX_GENERATIONS = 50
-POPULATION_SIZE = 200
+MAX_GENERATIONS = 5
+POPULATION_SIZE = 100
 TIMEOUT_SECONDS = 1  # Adjust the timeout as needed
 OUTPUT_DIRECTORY = "."
 
@@ -96,7 +95,7 @@ pset = gp.PrimitiveSet("MAIN", arity=1)  # This will be updated later based on v
 pset.addPrimitive(operator.add, 2)
 pset.addPrimitive(operator.sub, 2)
 pset.addPrimitive(operator.mul, 2)
-pset.addEphemeralConstant("rand101", lambda: random.randint(-10, 10))
+pset.addEphemeralConstant("rand101", lambda: random.randint(0, 1))
 
 creator.create("FitnessMin", base.Fitness, weights=(-1.0,))
 creator.create("Individual", gp.PrimitiveTree, fitness=creator.FitnessMin)
@@ -270,13 +269,26 @@ async def evalSymbReg(individual, variables, line_number, wrong_expression):
     num_failed_tests = failed_tests
     return num_failed_tests,
 
-async def async_eaSimple(pop, toolbox, cxpb, mutpb, halloffame, threshold, stats=None, verbose=__debug__):
+async def async_eaSimple(pop, toolbox, cxpb, mutpb, ngen, halloffame, threshold, stats=None, verbose=__debug__):
     logbook = tools.Logbook()
     logbook.header = ['gen', 'nevals'] + (stats.fields if stats else [])
 
-    gen = 0
-
-    while True:
+    # Evaluate the entire population
+    invalid_ind = [ind for ind in pop if not ind.fitness.valid]
+    fitnesses = await asyncio.gather(*[toolbox.evaluate(ind) for ind in invalid_ind])
+    for ind, fit in zip(invalid_ind, fitnesses):
+        ind.fitness.values = fit
+    
+    if halloffame is not None:
+        halloffame.update(pop)
+    
+    record = stats.compile(pop) if stats else {}
+    logbook.record(gen=0, nevals=len(invalid_ind), **record)
+    if verbose:
+        print(logbook.stream)
+    
+    # Begin the generational process
+    for gen in range(1, ngen + 1):
         # Select the next generation individuals
         offspring = toolbox.select(pop, len(pop))
         # Clone the selected individuals
@@ -303,7 +315,7 @@ async def async_eaSimple(pop, toolbox, cxpb, mutpb, halloffame, threshold, stats
         # Update the hall of fame with the generated individuals
         if halloffame is not None:
             halloffame.update(offspring)
-
+        
         # Replace the current population with the offspring
         pop[:] = offspring
 
@@ -318,9 +330,42 @@ async def async_eaSimple(pop, toolbox, cxpb, mutpb, halloffame, threshold, stats
             logging.info(f"Terminating early at generation {gen} as the best individual met the threshold.")
             break
 
-        gen += 1
-
     return pop, logbook
+def get_expression_at_line(code, line_number):
+    # Parse the code into an abstract syntax tree (AST)
+    tree = ast.parse(code)
+
+    # Define a visitor to traverse the AST and find the expression
+    class FindExpression(ast.NodeVisitor):
+        def __init__(self):
+            self.expression = None
+
+        def visit_Assign(self, node):
+            # Check if the node corresponds to the specified line number
+            if getattr(node, 'lineno', None) == line_number:
+                self.expression = node.value
+            self.generic_visit(node)
+
+        def visit_If(self, node):
+            if getattr(node, 'lineno', None) == line_number:
+                self.expression = node.test
+            self.generic_visit(node)
+
+        def visit_While(self, node):
+            if getattr(node, 'lineno', None) == line_number:
+                self.expression = node.test
+            self.generic_visit(node)
+
+    # Instantiate the visitor and traverse the AST
+    finder = FindExpression()
+    finder.visit(tree)
+
+    # Convert the found expression back to source code
+    if finder.expression is not None:
+        expression_code = astor.to_source(finder.expression).strip()
+        return expression_code
+    else:
+        return None
 
 @app.post("/test_program")
 async def test_program(request: ProgramTestRequest):
@@ -328,7 +373,8 @@ async def test_program(request: ProgramTestRequest):
     erroneous_program = request.program
     test_cases = request.test_cases
     line_number = request.line_number
-    wrong_expression = request.wrong_expression
+    wrong_expression = get_expression_at_line(erroneous_program, line_number)
+    wrong_expression=str(wrong_expression)[1:-1].strip()
 
     try:
         unittest_code = generate_unittest_class(erroneous_program, test_cases)
@@ -355,7 +401,7 @@ async def test_program(request: ProgramTestRequest):
         pset.addPrimitive(operator.add, 2)
         pset.addPrimitive(operator.sub, 2)
         pset.addPrimitive(operator.mul, 2)
-        pset.addEphemeralConstant("rand101", lambda: random.randint(-10, 10))
+        pset.addEphemeralConstant("rand101", lambda: random.randint(0, 2))
 
         toolbox.register("evaluate", lambda ind: evalSymbReg(ind, variables=variables, line_number=line_number, wrong_expression=wrong_expression))
         toolbox.register("select", tools.selTournament, tournsize=3)
@@ -382,7 +428,7 @@ async def test_program(request: ProgramTestRequest):
         # Set a fitness threshold for early termination
         fitness_threshold = 0
 
-        logbook = await async_eaSimple(pop, toolbox, 0.5, 0.1, hof, threshold=fitness_threshold, stats=stats, verbose=True)
+        logbook = await async_eaSimple(pop, toolbox, 0.5, 0.1, MAX_GENERATIONS, halloffame=hof, threshold=fitness_threshold, stats=stats, verbose=True)
         execution_time = time.time() - start_time
 
         metrics_file = OUTPUT_DIRECTORY + "/gcd_evolution_metrics.csv"
@@ -415,4 +461,4 @@ async def test_program(request: ProgramTestRequest):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+    uvicorn.run(app, host="127.0.0.1", port=8081)

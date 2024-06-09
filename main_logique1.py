@@ -84,12 +84,13 @@ class ProgramTestRequest(BaseModel):
     program: str
     test_cases: List[Tuple[Tuple[Any, ...], Any]]
     line_number: int
-    wrong_expression: str
 
 
 
 # Constants
-
+MAX_GENERATIONS = 50
+POPULATION_SIZE = 200
+TIMEOUT_SECONDS = 1  # Adjust the timeout as needed
 OUTPUT_DIRECTORY = "."
 
 class Bool(object):
@@ -387,6 +388,41 @@ def evolution(toolbox, pop, hof, stats,variables, ngen):
 
     return best_gen
 
+def get_expression_at_line(code, line_number):
+    # Parse the code into an abstract syntax tree (AST)
+    tree = ast.parse(code)
+
+    # Define a visitor to traverse the AST and find the expression
+    class FindExpression(ast.NodeVisitor):
+        def __init__(self):
+            self.expression = None
+
+        def visit_Assign(self, node):
+            # Check if the node corresponds to the specified line number
+            if getattr(node, 'lineno', None) == line_number:
+                self.expression = node.value
+            self.generic_visit(node)
+
+        def visit_If(self, node):
+            if getattr(node, 'lineno', None) == line_number:
+                self.expression = node.test
+            self.generic_visit(node)
+
+        def visit_While(self, node):
+            if getattr(node, 'lineno', None) == line_number:
+                self.expression = node.test
+            self.generic_visit(node)
+
+    # Instantiate the visitor and traverse the AST
+    finder = FindExpression()
+    finder.visit(tree)
+
+    # Convert the found expression back to source code
+    if finder.expression is not None:
+        expression_code = astor.to_source(finder.expression).strip()
+        return expression_code
+    else:
+        return None
 
 @app.post("/test_program")
 async def test_program(request: ProgramTestRequest):
@@ -396,7 +432,8 @@ async def test_program(request: ProgramTestRequest):
     erroneous_program = request.program
     test_cases = request.test_cases
     line_number = request.line_number
-    wrong_expression = request.wrong_expression
+    wrong_expression = get_expression_at_line(erroneous_program, line_number)
+    wrong_expression=str(wrong_expression)[1:-1].strip()
 
     try:
         unittest_code = generate_unittest_class(erroneous_program, test_cases)
@@ -472,4 +509,4 @@ async def test_program(request: ProgramTestRequest):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="127.0.0.1", port=8001)
+    uvicorn.run(app, host="127.0.0.1", port=8082)
