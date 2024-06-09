@@ -87,7 +87,7 @@ class ProgramTestRequest(BaseModel):
 
 # Constants
 MAX_GENERATIONS = 50
-POPULATION_SIZE = 100
+POPULATION_SIZE = 200
 TIMEOUT_SECONDS = 1  # Adjust the timeout as needed
 OUTPUT_DIRECTORY = "."
 
@@ -270,26 +270,13 @@ async def evalSymbReg(individual, variables, line_number, wrong_expression):
     num_failed_tests = failed_tests
     return num_failed_tests,
 
-async def async_eaSimple(pop, toolbox, cxpb, mutpb, ngen, halloffame, threshold, stats=None, verbose=__debug__):
+async def async_eaSimple(pop, toolbox, cxpb, mutpb, halloffame, threshold, stats=None, verbose=__debug__):
     logbook = tools.Logbook()
     logbook.header = ['gen', 'nevals'] + (stats.fields if stats else [])
 
-    # Evaluate the entire population
-    invalid_ind = [ind for ind in pop if not ind.fitness.valid]
-    fitnesses = await asyncio.gather(*[toolbox.evaluate(ind) for ind in invalid_ind])
-    for ind, fit in zip(invalid_ind, fitnesses):
-        ind.fitness.values = fit
-    
-    if halloffame is not None:
-        halloffame.update(pop)
-    
-    record = stats.compile(pop) if stats else {}
-    logbook.record(gen=0, nevals=len(invalid_ind), **record)
-    if verbose:
-        print(logbook.stream)
-    
-    # Begin the generational process
-    for gen in range(1, ngen + 1):
+    gen = 0
+
+    while True:
         # Select the next generation individuals
         offspring = toolbox.select(pop, len(pop))
         # Clone the selected individuals
@@ -316,7 +303,7 @@ async def async_eaSimple(pop, toolbox, cxpb, mutpb, ngen, halloffame, threshold,
         # Update the hall of fame with the generated individuals
         if halloffame is not None:
             halloffame.update(offspring)
-        
+
         # Replace the current population with the offspring
         pop[:] = offspring
 
@@ -330,6 +317,8 @@ async def async_eaSimple(pop, toolbox, cxpb, mutpb, ngen, halloffame, threshold,
         if halloffame[0].fitness.values[0] <= threshold:
             logging.info(f"Terminating early at generation {gen} as the best individual met the threshold.")
             break
+
+        gen += 1
 
     return pop, logbook
 
@@ -393,7 +382,7 @@ async def test_program(request: ProgramTestRequest):
         # Set a fitness threshold for early termination
         fitness_threshold = 0
 
-        logbook = await async_eaSimple(pop, toolbox, 0.5, 0.1, MAX_GENERATIONS, halloffame=hof, threshold=fitness_threshold, stats=stats, verbose=True)
+        logbook = await async_eaSimple(pop, toolbox, 0.5, 0.1, hof, threshold=fitness_threshold, stats=stats, verbose=True)
         execution_time = time.time() - start_time
 
         metrics_file = OUTPUT_DIRECTORY + "/gcd_evolution_metrics.csv"
