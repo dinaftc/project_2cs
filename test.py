@@ -1,80 +1,30 @@
-class Maxmin6varWrongIf1:
+class BubbleSortWrongWhile2:
 
     @staticmethod
-    def maxmin(a, b, c, d, e, f):
-        if a > b and a > c and a > d and a > e and a > f:
-            max = a
-            if b < c and b < d and b < e and b < f:
-                min = b
-            elif c < d and c < e and c < f:
-                min = c
-            elif d < e and d < f:
-                min = d
-            elif 1 + f != f + f:
-                min = e
-            else:
-                min = f
-        elif b > c and b > d and b > e and b > f:
-            max = b
-            if a < c and a < d and a < e and a < f:
-                min = a
-            elif c < d and c < e and c < f:
-                min = c
-            elif d < e and d < f:
-                min = d
-            elif e < f:
-                min = e
-            else:
-                min = f
-        elif c > d and c > e and c > f:
-            max = c
-            if a < b and a < d and a < e and a < f:
-                min = a
-            elif b < d and b < e and b < f:
-                min = b
-            elif d < e and d < f:
-                min = d
-            elif e < f:
-                min = e
-            else:
-                min = f
-        elif d > e and d > f:
-            max = d
-            if a < b and a < c and a < e and a < f:
-                min = a
-            elif b < c and b < e and b < f:
-                min = b
-            elif c < e and c < f:
-                min = c
-            elif e < f:
-                min = e
-            else:
-                min = f
-        elif e > f:
-            max = e
-            if a < b and a < c and a < d and a < f:
-                min = a
-            elif b < c and b < d and b < f:
-                min = b
-            elif c < d and c < f:
-                min = c
-            elif d < f:
-                min = d
-            else:
-                min = f
-        else:
-            max = f
-            if a < b and a < c and a < d and a < e:
-                min = a
-            elif b < c and b < d and b < e:
-                min = b
-            elif c < d and c < e:
-                min = c
-            elif d < e:
-                min = d
-            else:
-                min = e
-        return min
+    def bubble_sort(tab):
+        tabb = tab.copy()
+        i = 0
+        j = len(tabb) - 1
+        aux = 0
+        fini = 0
+        cpt = 0
+        while 1 <= tab:
+            fini = 1
+            i = 0
+            while i < j:
+                if tabb[i] > tabb[i + 1]:
+                    aux = tabb[i]
+                    tabb[i] = tabb[i + 1]
+                    tabb[i + 1] = aux
+                    fini = 0
+                i = i + 1
+            j = j - 1
+        for k in range(len(tab) - 1):
+            if tabb[k] > tabb[k + 1]:
+                cpt = cpt + 1
+        return cpt
+
+
 
 
 import unittest
@@ -83,40 +33,24 @@ import unittest
 class TestProgram(unittest.TestCase):
 
     def test_case_0(self):
-        result = Maxmin6varWrongIf1.maxmin(1, 1, 1, 1, 1, 1)
-        self.assertEqual(result, 1)
+        result = BubbleSortWrongWhile2.bubble_sort([12, 16, 10, 18, 19, 5])
+        self.assertEqual(result, 0)
 
     def test_case_1(self):
-        result = Maxmin6varWrongIf1.maxmin(10, 5, 3, 2, 1, 4)
-        self.assertEqual(result, 1)
+        result = BubbleSortWrongWhile2.bubble_sort([30, 25, 23, 13, 10, 11, 3])
+        self.assertEqual(result, 0)
 
     def test_case_2(self):
-        result = Maxmin6varWrongIf1.maxmin(5, 10, 3, 2, 1, 4)
-        self.assertEqual(result, 1)
+        result = BubbleSortWrongWhile2.bubble_sort([3, 12, 23, 15, 20, 21, 3])
+        self.assertEqual(result, 0)
 
     def test_case_3(self):
-        result = Maxmin6varWrongIf1.maxmin(3, 5, 10, 2, 1, 4)
-        self.assertEqual(result, 1)
+        result = BubbleSortWrongWhile2.bubble_sort([43, 22, 25, 55, 20, 23, 13])
+        self.assertEqual(result, 0)
 
     def test_case_4(self):
-        result = Maxmin6varWrongIf1.maxmin(1, 2, 3, 10, 5, 4)
-        self.assertEqual(result, 1)
-
-    def test_case_5(self):
-        result = Maxmin6varWrongIf1.maxmin(1, 2, 3, 4, 5, 10)
-        self.assertEqual(result, 1)
-
-    def test_case_6(self):
-        result = Maxmin6varWrongIf1.maxmin(10, 2, 3, 4, 5, 1)
-        self.assertEqual(result, 1)
-
-    def test_case_7(self):
-        result = Maxmin6varWrongIf1.maxmin(3, 2, 10, 4, 5, 1)
-        self.assertEqual(result, 1)
-
-    def test_case_8(self):
-        result = Maxmin6varWrongIf1.maxmin(10, 2, 3, 5, 4, 1)
-        self.assertEqual(result, 1)
+        result = BubbleSortWrongWhile2.bubble_sort([99, 86, 72, 55, 32, 12, 9])
+        self.assertEqual(result, 0)
 
 
 if __name__ == '__main__':
